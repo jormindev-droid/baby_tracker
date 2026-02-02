@@ -101,7 +101,25 @@ def login():
     
     user = User.query.filter_by(username=username).first()
     
-    if user and bcrypt.checkpw(password.encode('utf-8'), user.password.encode('utf-8')):
+    if not user:
+        return jsonify({'message': '用户名或密码错误'}), 401
+    
+    # 检查密码是否有效
+    password_valid = False
+    
+    try:
+        # 首先尝试使用bcrypt验证（新用户）
+        password_valid = bcrypt.checkpw(password.encode('utf-8'), user.password.encode('utf-8'))
+    except ValueError:
+        # 如果bcrypt验证失败（可能是无效的salt），尝试明文验证（旧用户）
+        if user.password == password:
+            password_valid = True
+            # 将明文密码升级为bcrypt哈希
+            hashed_password = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
+            user.password = hashed_password.decode('utf-8')
+            db.session.commit()
+    
+    if password_valid:
         # 将user.id转换为字符串，因为JWT identity必须是字符串类型
         access_token = create_access_token(identity=str(user.id))
         return jsonify({
