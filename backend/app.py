@@ -86,7 +86,8 @@ def login():
     user = User.query.filter_by(username=username).first()
     
     if user and user.password == password:
-        access_token = create_access_token(identity=user.id)
+        # 将user.id转换为字符串，因为JWT identity必须是字符串类型
+        access_token = create_access_token(identity=str(user.id))
         return jsonify({
             'access_token': access_token,
             'user_id': user.id
@@ -97,7 +98,9 @@ def login():
 @app.route('/api/children', methods=['GET'])
 @jwt_required()
 def get_children():
-    user_id = get_jwt_identity()
+    user_id_str = get_jwt_identity()
+    # 将字符串转换回整数进行数据库查询
+    user_id = int(user_id_str)
     children = Child.query.filter_by(user_id=user_id).all()
     
     result = []
@@ -115,7 +118,9 @@ def get_children():
 @jwt_required()
 def add_child():
     try:
-        user_id = get_jwt_identity()
+        user_id_str = get_jwt_identity()
+        # 将字符串转换回整数进行数据库查询
+        user_id = int(user_id_str)
         data = request.get_json()
         
         # 验证必填字段
@@ -170,7 +175,9 @@ def add_child():
 @app.route('/api/children/<int:child_id>/growth', methods=['GET'])
 @jwt_required()
 def get_growth_records(child_id):
-    user_id = get_jwt_identity()
+    user_id_str = get_jwt_identity()
+    # 将字符串转换回整数进行数据库查询
+    user_id = int(user_id_str)
     child = Child.query.filter_by(id=child_id, user_id=user_id).first()
     
     if not child:
@@ -193,7 +200,9 @@ def get_growth_records(child_id):
 @app.route('/api/children/<int:child_id>/growth', methods=['POST'])
 @jwt_required()
 def add_growth_record(child_id):
-    user_id = get_jwt_identity()
+    user_id_str = get_jwt_identity()
+    # 将字符串转换回整数进行数据库查询
+    user_id = int(user_id_str)
     child = Child.query.filter_by(id=child_id, user_id=user_id).first()
     
     if not child:
@@ -217,7 +226,9 @@ def add_growth_record(child_id):
 @app.route('/api/children/<int:child_id>/photos', methods=['GET'])
 @jwt_required()
 def get_photos(child_id):
-    user_id = get_jwt_identity()
+    user_id_str = get_jwt_identity()
+    # 将字符串转换回整数进行数据库查询
+    user_id = int(user_id_str)
     child = Child.query.filter_by(id=child_id, user_id=user_id).first()
     
     if not child:
@@ -240,7 +251,9 @@ def get_photos(child_id):
 @app.route('/api/children/<int:child_id>/photos', methods=['POST'])
 @jwt_required()
 def add_photo(child_id):
-    user_id = get_jwt_identity()
+    user_id_str = get_jwt_identity()
+    # 将字符串转换回整数进行数据库查询
+    user_id = int(user_id_str)
     child = Child.query.filter_by(id=child_id, user_id=user_id).first()
     
     if not child:
@@ -276,7 +289,9 @@ def add_photo(child_id):
 @app.route('/api/children/<int:child_id>/milestones', methods=['GET'])
 @jwt_required()
 def get_milestones(child_id):
-    user_id = get_jwt_identity()
+    user_id_str = get_jwt_identity()
+    # 将字符串转换回整数进行数据库查询
+    user_id = int(user_id_str)
     child = Child.query.filter_by(id=child_id, user_id=user_id).first()
     
     if not child:
@@ -298,7 +313,9 @@ def get_milestones(child_id):
 @app.route('/api/children/<int:child_id>/milestones', methods=['POST'])
 @jwt_required()
 def add_milestone(child_id):
-    user_id = get_jwt_identity()
+    user_id_str = get_jwt_identity()
+    # 将字符串转换回整数进行数据库查询
+    user_id = int(user_id_str)
     child = Child.query.filter_by(id=child_id, user_id=user_id).first()
     
     if not child:
