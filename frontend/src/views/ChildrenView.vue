@@ -55,6 +55,12 @@
           </div>
         </div>
       </div>
+      
+      <!-- 调试信息 -->
+      <div class="debug-info" v-if="children.length > 0">
+        <p>宝宝数量: {{ children.length }}</p>
+        <button @click="debugStore" class="btn btn-small">调试Store</button>
+      </div>
     </div>
     
     <!-- 添加宝宝模态框 -->
@@ -169,6 +175,14 @@ export default {
       }
     }
 
+    const debugStore = () => {
+      console.log('=== ChildrenView Debug ===')
+      console.log('children from store:', childrenStore.children)
+      console.log('children length:', childrenStore.children.length)
+      console.log('children computed:', childrenStore.children)
+      childrenStore.debugState()
+    }
+
     onMounted(() => {
       fetchChildren()
     })
@@ -182,7 +196,8 @@ export default {
       newChild,
       handleAddChild,
       getAvatarText,
-      getAgeText
+      getAgeText,
+      debugStore
     }
   }
 }
