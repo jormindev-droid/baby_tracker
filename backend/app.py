@@ -7,6 +7,7 @@ from werkzeug.utils import secure_filename
 import os
 from datetime import datetime, timedelta
 import uuid
+import bcrypt
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'your-secret-key-here'
@@ -68,10 +69,22 @@ def register():
     username = data.get('username')
     password = data.get('password')
     
+    if not username or not password:
+        return jsonify({'message': '用户名和密码不能为空'}), 400
+    
+    if len(username) < 3:
+        return jsonify({'message': '用户名至少需要3个字符'}), 400
+    
+    if len(password) < 6:
+        return jsonify({'message': '密码至少需要6个字符'}), 400
+    
     if User.query.filter_by(username=username).first():
         return jsonify({'message': '用户名已存在'}), 400
     
-    user = User(username=username, password=password)
+    # 使用bcrypt哈希密码
+    hashed_password = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
+    
+    user = User(username=username, password=hashed_password.decode('utf-8'))
     db.session.add(user)
     db.session.commit()
     
@@ -83,9 +96,12 @@ def login():
     username = data.get('username')
     password = data.get('password')
     
+    if not username or not password:
+        return jsonify({'message': '用户名和密码不能为空'}), 400
+    
     user = User.query.filter_by(username=username).first()
     
-    if user and user.password == password:
+    if user and bcrypt.checkpw(password.encode('utf-8'), user.password.encode('utf-8')):
         # 将user.id转换为字符串，因为JWT identity必须是字符串类型
         access_token = create_access_token(identity=str(user.id))
         return jsonify({
