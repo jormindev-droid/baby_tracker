@@ -12,7 +12,7 @@ app = Flask(__name__)
 app.config['SECRET_KEY'] = 'your-secret-key-here'
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///baby_tracker.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.config['JWT_SECRET_KEY'] = 'jwt-secret-string'
+app.config['JWT_SECRET_KEY'] = 'super-secret-jwt-key-with-at-least-32-characters'
 app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(hours=24)
 app.config['UPLOAD_FOLDER'] = 'uploads'
 
@@ -114,20 +114,58 @@ def get_children():
 @app.route('/api/children', methods=['POST'])
 @jwt_required()
 def add_child():
-    user_id = get_jwt_identity()
-    data = request.get_json()
-    
-    child = Child(
-        name=data['name'],
-        birth_date=datetime.strptime(data['birth_date'], '%Y-%m-%d').date(),
-        gender=data['gender'],
-        user_id=user_id
-    )
-    
-    db.session.add(child)
-    db.session.commit()
-    
-    return jsonify({'message': '宝宝信息添加成功', 'child_id': child.id}), 201
+    try:
+        user_id = get_jwt_identity()
+        data = request.get_json()
+        
+        # 验证必填字段
+        if not data:
+            return jsonify({'message': '请求数据不能为空'}), 400
+        
+        required_fields = ['name', 'birth_date', 'gender']
+        for field in required_fields:
+            if field not in data:
+                return jsonify({'message': f'缺少必填字段: {field}'}), 400
+        
+        # 验证性别字段
+        if data['gender'] not in ['male', 'female']:
+            return jsonify({'message': '性别必须是 male 或 female'}), 400
+        
+        # 验证日期格式
+        try:
+            birth_date = datetime.strptime(data['birth_date'], '%Y-%m-%d').date()
+        except ValueError:
+            return jsonify({'message': '出生日期格式不正确，请使用 YYYY-MM-DD 格式'}), 400
+        
+        # 验证出生日期不能是未来日期
+        if birth_date > datetime.now().date():
+            return jsonify({'message': '出生日期不能是未来日期'}), 400
+        
+        child = Child(
+            name=data['name'].strip(),
+            birth_date=birth_date,
+            gender=data['gender'],
+            user_id=user_id
+        )
+        
+        db.session.add(child)
+        db.session.commit()
+        
+        return jsonify({
+            'message': '宝宝信息添加成功', 
+            'child_id': child.id,
+            'child': {
+                'id': child.id,
+                'name': child.name,
+                'birth_date': child.birth_date.strftime('%Y-%m-%d'),
+                'gender': child.gender
+            }
+        }), 201
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"添加宝宝时发生错误: {str(e)}")
+        return jsonify({'message': '服务器内部错误，请稍后重试'}), 500
 
 @app.route('/api/children/<int:child_id>/growth', methods=['GET'])
 @jwt_required()
