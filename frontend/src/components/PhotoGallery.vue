@@ -43,7 +43,8 @@
             class="photo-card"
             @click="openLightbox(photo)"
           >
-            <img :src="getPhotoUrl(photo.filename)" :alt="photo.description || '宝宝照片'" />
+            <!-- 使用缩略图显示 -->
+            <img :src="getThumbnailUrl(photo)" :alt="photo.description || '宝宝照片'" />
             <div class="photo-overlay">
               <div class="photo-info">
                 <h4>{{ formatDate(photo.date_taken) }}</h4>
@@ -62,7 +63,8 @@
     <div v-if="lightboxPhoto" class="lightbox-overlay" @click="closeLightbox">
       <div class="lightbox-content" @click.stop>
         <button class="lightbox-close" @click="closeLightbox">×</button>
-        <img :src="getPhotoUrl(lightboxPhoto.filename)" :alt="lightboxPhoto.description || '宝宝照片'" />
+        <!-- 预览时使用原始图片 -->
+        <img :src="getOriginalUrl(lightboxPhoto)" :alt="lightboxPhoto.description || '宝宝照片'" />
         <div class="lightbox-info">
           <h3>{{ formatDate(lightboxPhoto.date_taken) }}</h3>
           <p v-if="lightboxPhoto.description">{{ lightboxPhoto.description }}</p>
@@ -137,8 +139,14 @@ export default {
       }
     }
 
-    const getPhotoUrl = (filename) => {
-      return `/uploads/${filename}`
+    const getThumbnailUrl = (photo) => {
+      // 优先使用缩略图URL，如果没有则使用原始URL
+      return photo.thumbnail_url || photo.original_url || `/uploads/${photo.filename}`
+    }
+
+    const getOriginalUrl = (photo) => {
+      // 使用原始图片URL
+      return photo.original_url || `/uploads/${photo.filename}`
     }
 
     const formatDate = (dateString) => {
@@ -167,31 +175,88 @@ export default {
       uploading.value = true
       uploadProgress.value = 0
       
-      const formData = new FormData()
-      formData.append('photo', selectedFile.value)
-      formData.append('description', photoDescription.value)
-      
       try {
-        const response = await axios.post(`/api/children/${props.child.id}/photos`, formData, {
-          headers: {
-            'Content-Type': 'multipart/form-data'
-          },
-          onUploadProgress: (progressEvent) => {
-            uploadProgress.value = Math.round((progressEvent.loaded * 100) / progressEvent.total)
+        // 1. 获取OSS上传签名
+        const signatureResponse = await axios.get('/api/oss/signature', {
+          params: {
+            child_id: props.child.id,
+            filename: selectedFile.value.name
           }
         })
         
-        await fetchPhotos()
-        showDescriptionModal.value = false
-        selectedFile.value = null
-        photoDescription.value = ''
-        fileInput.value.value = ''
+        const { upload_url, object_key } = signatureResponse.data
+        
+        // 2. 直接上传到OSS
+        const fileReader = new FileReader()
+        fileReader.onload = async () => {
+          try {
+            // 使用PUT方法直接上传到OSS
+            const uploadResponse = await fetch(upload_url, {
+              method: 'PUT',
+              body: selectedFile.value,
+              headers: {
+                'Content-Type': selectedFile.value.type
+              }
+            })
+            
+            if (!uploadResponse.ok) {
+              throw new Error('上传到OSS失败')
+            }
+            
+            // 3. 在数据库中创建照片记录
+            const photoResponse = await axios.post(`/api/children/${props.child.id}/photos`, {
+              filename: selectedFile.value.name,
+              object_key: object_key,
+              description: photoDescription.value
+            })
+            
+            await fetchPhotos()
+            showDescriptionModal.value = false
+            selectedFile.value = null
+            photoDescription.value = ''
+            fileInput.value.value = ''
+            
+          } catch (error) {
+            uploadError.value = '上传失败，请检查文件大小和格式'
+            console.error('上传照片失败:', error)
+          } finally {
+            uploading.value = false
+            uploadProgress.value = 0
+          }
+        }
+        
+        fileReader.readAsArrayBuffer(selectedFile.value)
+        
       } catch (error) {
-        uploadError.value = '上传失败，请检查文件大小和格式'
-        console.error('上传照片失败:', error)
-      } finally {
-        uploading.value = false
-        uploadProgress.value = 0
+        // 如果OSS上传失败，尝试使用传统方式上传
+        console.log('OSS上传失败，尝试传统上传:', error)
+        
+        const formData = new FormData()
+        formData.append('photo', selectedFile.value)
+        formData.append('description', photoDescription.value)
+        
+        try {
+          const response = await axios.post(`/api/children/${props.child.id}/photos`, formData, {
+            headers: {
+              'Content-Type': 'multipart/form-data'
+            },
+            onUploadProgress: (progressEvent) => {
+              uploadProgress.value = Math.round((progressEvent.loaded * 100) / progressEvent.total)
+            }
+          })
+          
+          await fetchPhotos()
+          showDescriptionModal.value = false
+          selectedFile.value = null
+          photoDescription.value = ''
+          fileInput.value.value = ''
+        } catch (fallbackError) {
+          uploadError.value = '上传失败，请检查文件大小和格式'
+          console.error('传统上传也失败:', fallbackError)
+        } finally {
+          uploading.value = false
+          uploadProgress.value = 0
+        }
       }
     }
 
@@ -232,7 +297,8 @@ export default {
       showDescriptionModal,
       photoDescription,
       fileInput,
-      getPhotoUrl,
+      getThumbnailUrl,
+      getOriginalUrl,
       formatDate,
       handleFileSelect,
       handleUploadPhoto,

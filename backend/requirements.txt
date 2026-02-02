@@ -5,3 +5,6 @@ Flask-CORS==4.0.0
 Flask-JWT-Extended==4.5.2
 python-dotenv==1.0.0
 bcrypt==4.0.1
+oss2==2.18.4
+Pillow==10.1.0
+PyYAML==6.0.1
